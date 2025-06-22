@@ -1,3 +1,5 @@
 groq 
 python-dotenv
-pprint
+#pprint
+streamlit
+protobuf
