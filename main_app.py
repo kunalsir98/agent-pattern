@@ -1,46 +1,7 @@
 import streamlit as st
-from dotenv import load_dotenv
 import os
 from groq import Groq
 import time
-
-# --- API Key Initialization ---
-def initialize_groq_client():
-    # Try to get API key from environment variables
-    api_key = os.getenv("GROQ_API_KEY")
-    
-    # If not found, check Streamlit secrets (for deployment)
-    if not api_key and hasattr(st, 'secrets'):
-        if 'GROQ_API_KEY' in st.secrets:
-            api_key = st.secrets['GROQ_API_KEY']
-    
-    # If still not found, show input field (for temporary local/testing)
-    if not api_key:
-        with st.sidebar:
-            api_key = st.text_input("Enter GROQ API Key:", 
-                                   type="password",
-                                   help="Get your key from https://console.groq.com/keys")
-    
-    # Validate key format
-    if api_key:
-        api_key = api_key.strip()
-        if not api_key.startswith("gsk_") or len(api_key) != 56:
-            st.error("Invalid API key format. Should start with 'gsk_' and be 56 characters.")
-            st.stop()
-    
-    if not api_key:
-        st.error("API key not found. Please provide your GROQ API key.")
-        st.stop()
-    
-    try:
-        return Groq(api_key=api_key)
-    except Exception as e:
-        st.error(f"Error initializing Groq client: {str(e)}")
-        st.stop()
-
-# Load environment variables and initialize client
-load_dotenv()
-client = initialize_groq_client()
 
 # App Configuration
 st.set_page_config(
@@ -50,26 +11,46 @@ st.set_page_config(
 )
 
 # Session State Initialization
-if 'gen_content' not in st.session_state:
-    st.session_state.gen_content = ""
-if 'content_critique' not in st.session_state:
-    st.session_state.content_critique = ""
-if 'rev_content' not in st.session_state:
-    st.session_state.rev_content = ""
-if 'gen_code' not in st.session_state:
-    st.session_state.gen_code = ""
-if 'code_critique' not in st.session_state:
-    st.session_state.code_critique = ""
-if 'rev_code' not in st.session_state:
-    st.session_state.rev_code = ""
-if 'final_code' not in st.session_state:
-    st.session_state.final_code = ""
-if 'test_cases' not in st.session_state:
-    st.session_state.test_cases = ""
+session_defaults = {
+    'gen_content': "",
+    'content_critique': "",
+    'rev_content': "",
+    'gen_code': "",
+    'code_critique': "",
+    'rev_code': "",
+    'final_code': "",
+    'test_cases': "",
+    'api_key': ""
+}
+
+for key, default in session_defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = default
 
 # Sidebar Configuration
 with st.sidebar:
+    st.title("🔑 API Key Setup")
+    api_key = st.text_input("Enter GROQ API Key:", 
+                           type="password",
+                           value=st.session_state.api_key,
+                           help="Get your key from [Groq Console](https://console.groq.com/keys)")
+    
+    if api_key:
+        api_key = api_key.strip()
+        if not api_key.startswith("gsk_") or len(api_key) != 56:
+            st.error("Invalid API key format. Should start with 'gsk_' and be 56 characters.")
+            st.stop()
+        else:
+            st.session_state.api_key = api_key
+            st.success("API key validated successfully!")
+    
+    st.divider()
     st.title("⚙️ Studio Configuration")
+    
+    if not st.session_state.api_key:
+        st.warning("Please enter your API key above")
+        st.stop()
+    
     model_name = st.selectbox(
         "Select AI Model",
         ("llama3-70b-8192", "mixtral-8x7b-32768", "gemma-7b-it"),
@@ -80,9 +61,15 @@ with st.sidebar:
     max_tokens = st.slider("Max Output Length", 256, 4096, 2048)
     
     st.divider()
-    st.caption("Current directory: " + os.getcwd())
-    st.caption(f"Files: {', '.join(os.listdir())}")
     st.caption("Made with ❤️ using Streamlit + Groq")
+    st.caption("Your API key is never stored or transmitted to any server")
+
+# Initialize Groq client
+try:
+    client = Groq(api_key=st.session_state.api_key)
+except Exception as e:
+    st.error(f"Error initializing Groq client: {str(e)}")
+    st.stop()
 
 # Main App Tabs
 content_tab, code_tab = st.tabs(["🎨 Content Studio", "💻 Code Studio"])
