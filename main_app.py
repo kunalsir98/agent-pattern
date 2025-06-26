@@ -2,12 +2,45 @@ import streamlit as st
 from dotenv import load_dotenv
 import os
 from groq import Groq
+import time
 
-# Load environment variables
+# --- API Key Initialization ---
+def initialize_groq_client():
+    # Try to get API key from environment variables
+    api_key = os.getenv("GROQ_API_KEY")
+    
+    # If not found, check Streamlit secrets (for deployment)
+    if not api_key and hasattr(st, 'secrets'):
+        if 'GROQ_API_KEY' in st.secrets:
+            api_key = st.secrets['GROQ_API_KEY']
+    
+    # If still not found, show input field (for temporary local/testing)
+    if not api_key:
+        with st.sidebar:
+            api_key = st.text_input("Enter GROQ API Key:", 
+                                   type="password",
+                                   help="Get your key from https://console.groq.com/keys")
+    
+    # Validate key format
+    if api_key:
+        api_key = api_key.strip()
+        if not api_key.startswith("gsk_") or len(api_key) != 56:
+            st.error("Invalid API key format. Should start with 'gsk_' and be 56 characters.")
+            st.stop()
+    
+    if not api_key:
+        st.error("API key not found. Please provide your GROQ API key.")
+        st.stop()
+    
+    try:
+        return Groq(api_key=api_key)
+    except Exception as e:
+        st.error(f"Error initializing Groq client: {str(e)}")
+        st.stop()
+
+# Load environment variables and initialize client
 load_dotenv()
-
-# Initialize Groq client
-client = Groq(api_key=os.getenv('GROQ_API_KEY'))
+client = initialize_groq_client()
 
 # App Configuration
 st.set_page_config(
@@ -31,6 +64,8 @@ if 'rev_code' not in st.session_state:
     st.session_state.rev_code = ""
 if 'final_code' not in st.session_state:
     st.session_state.final_code = ""
+if 'test_cases' not in st.session_state:
+    st.session_state.test_cases = ""
 
 # Sidebar Configuration
 with st.sidebar:
@@ -45,7 +80,8 @@ with st.sidebar:
     max_tokens = st.slider("Max Output Length", 256, 4096, 2048)
     
     st.divider()
-    st.caption("Connect your GROQ API key in a .env file")
+    st.caption("Current directory: " + os.getcwd())
+    st.caption(f"Files: {', '.join(os.listdir())}")
     st.caption("Made with ❤️ using Streamlit + Groq")
 
 # Main App Tabs
@@ -101,14 +137,17 @@ with content_tab:
                 {'role': 'user', 'content': user_prompt}
             ]
             
-            response = client.chat.completions.create(
-                messages=generate_chat_history,
-                model=model_name,
-                temperature=temp_content,
-                max_tokens=max_tokens
-            )
-            
-            st.session_state.gen_content = response.choices[0].message.content
+            try:
+                response = client.chat.completions.create(
+                    messages=generate_chat_history,
+                    model=model_name,
+                    temperature=temp_content,
+                    max_tokens=max_tokens
+                )
+                st.session_state.gen_content = response.choices[0].message.content
+            except Exception as e:
+                st.error(f"Content generation failed: {str(e)}")
+                st.session_state.gen_content = ""
     
     # Display generated content
     if st.session_state.gen_content:
@@ -153,14 +192,16 @@ with content_tab:
                         }
                     ]
                     
-                    critique_response = client.chat.completions.create(
-                        messages=reflection_history,
-                        model=model_name,
-                        temperature=0.1,
-                        max_tokens=max_tokens
-                    )
-                    
-                    st.session_state.content_critique = critique_response.choices[0].message.content
+                    try:
+                        critique_response = client.chat.completions.create(
+                            messages=reflection_history,
+                            model=model_name,
+                            temperature=0.1,
+                            max_tokens=max_tokens
+                        )
+                        st.session_state.content_critique = critique_response.choices[0].message.content
+                    except Exception as e:
+                        st.error(f"Critique failed: {str(e)}")
         
         if st.session_state.content_critique:
             with st.expander("Expert Critique", expanded=True):
@@ -181,14 +222,16 @@ with content_tab:
                         }
                     ]
                     
-                    revision_response = client.chat.completions.create(
-                        messages=revision_history,
-                        model=model_name,
-                        temperature=temp_content,
-                        max_tokens=max_tokens
-                    )
-                    
-                    st.session_state.rev_content = revision_response.choices[0].message.content
+                    try:
+                        revision_response = client.chat.completions.create(
+                            messages=revision_history,
+                            model=model_name,
+                            temperature=temp_content,
+                            max_tokens=max_tokens
+                        )
+                        st.session_state.rev_content = revision_response.choices[0].message.content
+                    except Exception as e:
+                        st.error(f"Revision failed: {str(e)}")
         
         if st.session_state.rev_content:
             with st.expander("Refined Content", expanded=True):
@@ -239,14 +282,17 @@ with code_tab:
                 }
             ]
             
-            response = client.chat.completions.create(
-                messages=generate_chat_history,
-                model=model_name,
-                temperature=temp_code,
-                max_tokens=max_tokens
-            )
-            
-            st.session_state.gen_code = response.choices[0].message.content
+            try:
+                response = client.chat.completions.create(
+                    messages=generate_chat_history,
+                    model=model_name,
+                    temperature=temp_code,
+                    max_tokens=max_tokens
+                )
+                st.session_state.gen_code = response.choices[0].message.content
+            except Exception as e:
+                st.error(f"Code generation failed: {str(e)}")
+                st.session_state.gen_code = ""
     
     # Display generated code
     if st.session_state.gen_code:
@@ -283,14 +329,16 @@ with code_tab:
                         }
                     ]
                     
-                    critique_response = client.chat.completions.create(
-                        messages=reflection_history,
-                        model=model_name,
-                        temperature=0.1,
-                        max_tokens=max_tokens
-                    )
-                    
-                    st.session_state.code_critique = critique_response.choices[0].message.content
+                    try:
+                        critique_response = client.chat.completions.create(
+                            messages=reflection_history,
+                            model=model_name,
+                            temperature=0.1,
+                            max_tokens=max_tokens
+                        )
+                        st.session_state.code_critique = critique_response.choices[0].message.content
+                    except Exception as e:
+                        st.error(f"Code critique failed: {str(e)}")
         
         if st.session_state.code_critique:
             with st.expander("Expert Code Review", expanded=True):
@@ -314,14 +362,16 @@ with code_tab:
                         }
                     ]
                     
-                    revision_response = client.chat.completions.create(
-                        messages=revision_history,
-                        model=model_name,
-                        temperature=temp_code,
-                        max_tokens=max_tokens
-                    )
-                    
-                    st.session_state.rev_code = revision_response.choices[0].message.content
+                    try:
+                        revision_response = client.chat.completions.create(
+                            messages=revision_history,
+                            model=model_name,
+                            temperature=temp_code,
+                            max_tokens=max_tokens
+                        )
+                        st.session_state.rev_code = revision_response.choices[0].message.content
+                    except Exception as e:
+                        st.error(f"Code revision failed: {str(e)}")
         
         if st.session_state.rev_code:
             with st.expander("Refined Code", expanded=True):
@@ -354,14 +404,16 @@ with code_tab:
                     }
                 ]
                 
-                final_response = client.chat.completions.create(
-                    messages=refinement_history,
-                    model=model_name,
-                    temperature=0.1,
-                    max_tokens=max_tokens
-                )
-                
-                st.session_state.final_code = final_response.choices[0].message.content
+                try:
+                    final_response = client.chat.completions.create(
+                        messages=refinement_history,
+                        model=model_name,
+                        temperature=0.1,
+                        max_tokens=max_tokens
+                    )
+                    st.session_state.final_code = final_response.choices[0].message.content
+                except Exception as e:
+                    st.error(f"Final refinement failed: {str(e)}")
         
         if st.session_state.final_code:
             with st.expander("Production-Grade Code", expanded=True):
@@ -374,15 +426,34 @@ with code_tab:
                 )
                 
                 # Generate test cases
-                with st.spinner("Generating test cases..."):
-                    test_prompt = f"Generate test cases for this code:\n```python\n{st.session_state.final_code}\n```"
-                    test_response = client.chat.completions.create(
-                        messages=[{'role': 'user', 'content': test_prompt}],
-                        model=model_name,
-                        temperature=0.1,
-                        max_tokens=1000
-                    )
-                    test_cases = test_response.choices[0].message.content
-                    
-                    st.subheader("Test Cases")
-                    st.code(test_cases, language='python')
+                if st.button("Generate Test Cases", key="test_cases_btn"):
+                    with st.spinner("Creating comprehensive tests..."):
+                        test_prompt = (
+                            f"Generate comprehensive test cases for this {language} code. "
+                            f"Include edge cases and format as executable code:\n\n"
+                            f"```{language.lower()}\n{st.session_state.final_code}\n```"
+                        )
+                        
+                        try:
+                            test_response = client.chat.completions.create(
+                                messages=[{'role': 'user', 'content': test_prompt}],
+                                model=model_name,
+                                temperature=0.1,
+                                max_tokens=1000
+                            )
+                            st.session_state.test_cases = test_response.choices[0].message.content
+                        except Exception as e:
+                            st.error(f"Test generation failed: {str(e)}")
+        
+        if st.session_state.test_cases:
+            with st.expander("Test Cases", expanded=True):
+                st.code(st.session_state.test_cases, language='python')
+                st.download_button(
+                    label="Download Tests",
+                    data=st.session_state.test_cases,
+                    file_name="test_cases.py",
+                    mime="text/plain"
+                )
+
+# Rate limiting to avoid API errors
+time.sleep(0.5)
