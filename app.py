@@ -49,7 +49,7 @@ class FixedReflectionAgent(ReflectionAgent):
 
 # Streamlit App
 st.set_page_config(page_title="AI Code Refinery", layout="wide")
-st.title("🧠 AI-Powered Code Refinement")
+st.title("🧠 AI-Powered Code")
 st.caption("Automatically generate and refine code using self-reflection patterns")
 
 # Sidebar Configuration
